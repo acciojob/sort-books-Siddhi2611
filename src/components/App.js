@@ -1,108 +1,89 @@
-import React from "react";
-import './../styles/App.css';
-
-// ----------- Redux-like Setup (inside one file) -----------
-
-const initialState = {
-  books: [],
-  loading: false,
-  error: null,
-  sortBy: "title",
-  order: "asc",
-};
-
-function reducer(state, action) {
-  switch (action.type) {
-    case "SET_BOOKS":
-      return { ...state, books: action.payload, loading: false, error: null };
-    case "SET_SORTBY":
-      return { ...state, sortBy: action.payload };
-    case "SET_ORDER":
-      return { ...state, order: action.payload };
-    default:
-      return state;
-  }
-}
-
-// ----------- Mock Fetch Function (no network) -----------
-function fetchBooks(dispatch) {
-  // mock static data so Cypress always finds table rows
-  const mockBooks = [
-    { title: "A Tale of Two Cities", author: "Charles Dickens", publisher: "Chapman & Hall", isbn: "111" },
-    { title: "Moby Dick", author: "Herman Melville", publisher: "Harper & Brothers", isbn: "222" },
-    { title: "Pride and Prejudice", author: "Jane Austen", publisher: "T. Egerton", isbn: "333" },
-    { title: "The Great Gatsby", author: "F. Scott Fitzgerald", publisher: "Charles Scribner's Sons", isbn: "444" },
-  ];
-  dispatch({ type: "SET_BOOKS", payload: mockBooks });
-}
-
-// ----------- Main Component -----------
+import React, { useEffect, useState } from "react";
+import "./../styles/App.css";
 
 const App = () => {
-  const [state, dispatch] = React.useReducer(reducer, initialState);
+  const [books, setBooks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [sortBy, setSortBy] = useState("title");
+  const [order, setOrder] = useState("asc");
 
-  React.useEffect(() => {
-    fetchBooks(dispatch);
+  useEffect(() => {
+    fetch(
+      "https://api.nytimes.com/svc/books/v3/lists/current/hardcover-fiction.json?api-key=demo"
+    )
+      .then((res) => res.json())
+      .then((data) => {
+        var bookList = (data && data.results && data.results.books) || [];
+        bookList = sortBooks(bookList, "title", "asc");
+        setBooks(bookList);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
   }, []);
 
-  // Sorting logic
-  const sortedBooks = state.books.slice().sort((a, b) => {
-    const field = state.sortBy;
-    const valA = (a[field] || "").toLowerCase();
-    const valB = (b[field] || "").toLowerCase();
-    if (valA < valB) return state.order === "asc" ? -1 : 1;
-    if (valA > valB) return state.order === "asc" ? 1 : -1;
-    return 0;
-  });
+  function sortBooks(list, key, ord) {
+    var sorted = list.slice().sort(function (a, b) {
+      var valA = (a[key] || "").toLowerCase();
+      var valB = (b[key] || "").toLowerCase();
+      if (valA < valB) return ord === "asc" ? -1 : 1;
+      if (valA > valB) return ord === "asc" ? 1 : -1;
+      return 0;
+    });
+    return sorted;
+  }
+
+  function handleSortChange(e) {
+    var newSortBy = e.target.value;
+    setSortBy(newSortBy);
+    setBooks(sortBooks(books, newSortBy, order));
+  }
+
+  function handleOrderChange(e) {
+    var newOrder = e.target.value;
+    setOrder(newOrder);
+    setBooks(sortBooks(books, sortBy, newOrder));
+  }
+
+  if (loading) return <p>Loading...</p>;
 
   return (
     <div>
       {/* Do not remove the main div */}
       <h1>Books List</h1>
 
-      <div style={{ marginBottom: "10px" }}>
-        <label htmlFor="sortBy">Sort By: </label>
-        {/* select:nth-child(1) */}
-        <select
-          id="sortBy"
-          value={state.sortBy}
-          onChange={(e) => dispatch({ type: "SET_SORTBY", payload: e.target.value })}
-        >
+      <div>
+        <label>Sort by:</label>
+        <select value={sortBy} onChange={handleSortChange}>
           <option value="title">Title</option>
           <option value="author">Author</option>
           <option value="publisher">Publisher</option>
         </select>
 
-        <label htmlFor="order" style={{ marginLeft: "10px" }}>Order: </label>
-        {/* select:nth-child(2) */}
-        <select
-          id="order"
-          value={state.order}
-          onChange={(e) => dispatch({ type: "SET_ORDER", payload: e.target.value })}
-        >
+        <label>Order:</label>
+        <select value={order} onChange={handleOrderChange}>
           <option value="asc">Ascending</option>
           <option value="desc">Descending</option>
         </select>
       </div>
 
-      <table border="1" cellPadding="6">
+      <table border="1">
         <thead>
           <tr>
             <th>Title</th>
             <th>Author</th>
             <th>Publisher</th>
-            <th>ISBN</th>
           </tr>
         </thead>
         <tbody>
-          {sortedBooks.map((b, i) => (
-            <tr key={i}>
-              <td>{b.title}</td>
-              <td>{b.author}</td>
-              <td>{b.publisher}</td>
-              <td>{b.isbn}</td>
-            </tr>
-          ))}
+          {books.map(function (b, i) {
+            return (
+              <tr key={i}>
+                <td>{b.title}</td>
+                <td>{b.author}</td>
+                <td>{b.publisher}</td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
